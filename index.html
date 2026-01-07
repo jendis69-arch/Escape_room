@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Czech Escape Room — Prague Castle (with Audio)</title>
+  <style>
+    body {
+      width: 100vw; height: 100vh;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      margin: 0;
+      Color:white;
+      font-family: Cinzel, serif;
+      text-shadow: 2px 2px 4px #000;
+      transition: background-image 0.5s;
+    }
+    .wrapper { background: rgba(20,20,20,0.6); border-radius: 2em; box-shadow: 0 0 28px #222; padding: 2em; width: 400px; max-width: 98vw; margin: 3em auto; }
+    h1, h2 { text-align: center; }
+    .btn { margin: 1em auto; padding: 0.75em 2em; font-size: 1.15em; border-radius: 0.5em; border: 2px solid gold; background: #222; color: #fff; box-shadow: 0 2px 4px #0008; cursor: pointer; display: block; }
+    input, select { margin: 0.5em 0; width: 100%; padding: 0.5em; border-radius: 0.5em; border: 1.5px solid gold; font-size: 1em; }
+    .intro-img { display: block; margin: 0 auto 2em auto; max-width: 200px; border: 3px solid gold; background: #fff; border-radius: 1em; }
+    .code-box { letter-spacing: 0.2em; font-size: 1.3em; padding: 0.5em 0; text-align: center; }
+    .timer { position: fixed; top: 20px; right: 20px; background:rgba(0,0,0,0.6); color: #ff0000; font-weight: bold; font-size: 1.3em; border-radius: 1em; padding: 0.4em 1em; z-index: 10; }
+    .audio-panel { position: fixed; left: 20px; bottom: 20px; z-index: 20; background: rgba(0,0,0,0.6); padding: 0.6em; border-radius: 0.8em; border: 1px solid #ffd85e; }
+    .audio-panel label{ display:block; font-size:0.9em; margin-bottom:0.3em; }
+    .correct { color: #cfff94; }
+    .incorrect { color: #ff6161; }
+    @media (max-width: 650px) { .wrapper { padding: 1em; width: 99vw; } .audio-panel{ left:10px; right:10px; bottom:10px; } }
+  </style>
+</head>
+<body>
+  <div class="timer" id="timer"></div>
+
+  <!-- AUDIO ELEMENTS (hidden but present in code) -->
+<audio id="bgm" src="Witcher .mp3" loop preload="auto" style="display:none"></audio>
+<audio id="success" src="Correct sound effect.mp3" preload="auto" style="display:none"></audio>
+<audio id="fail" src="Wrong answer sound effect.mp3" preload="auto" style="display:none"></audio>
+<audio id="vault" src="vault.mp3" preload="auto" style="display:none"></audio>
+<audio id="door" src="door_open.mp3" preload="auto" style="display:none"></audio>
+<audio id="click" src="button_click.mp3" preload="auto" style="display:none"></audio>
+
+<div id="root"></div>
+
+<script>
+// Assign an image for every room and state
+const backgrounds = [
+  "lev.jpg",       // Intro
+  "lev.jpg",      // Room 1
+  "lev.jpg",      // Room 2
+  "lev.jpg",    // Room 3
+  "lev.jpg",    // Room 4
+  "lev.jpg",    // Room 5
+  "lev.jpg",    // Room 6
+  "lev.jpg",    // Room 7
+  "lev.jpg",    // Room 8
+  "lev.jpg",// Outro / Victory
+  "lev.jpg"          // Time's up, Game Over
+];
+// Image for intro (the Czech lion crest)
+const lionImg = "Image.jpeg"; // Replace with your lion crest image
+
+// Vault code to be revealed one letter per correct answer
+const VAULT_CODE = "BOHEMIANAMBITION".toUpperCase();
+const STORY_PAGES = [
+  {
+    title: "Welcome to CzechScape Room",
+    img: "story_intro.png",
+    text: "Before you do so, you will get the chance to meet the infamous mr. Novák, who will be our prime example of how Czech business culture works, and he will be your guide to successfuly go through our escape room, stay focused and sharp, remember as much as you can about mr. Novák, you will need it! ."
+  },
+  {
+    title: "Arrival at the Meeting",
+    img: "story_arrival.png",
+    text: "Mr. Novák arrives five minutes before the scheduled start. He never arrives late and considers punctuality a basic professional standard and a sign of respect."
+  },
+  {
+    title: "First Greeting and Formality",
+    img: "story_greeting.png",
+    text: "As the meeting begins, Mr. Novák greets you with a firm handshake and addresses everyone using last names and professional titles."
+  },
+  {
+    title: "Meeting Atmosphere and Feedback",
+    img: "story_meeting.png",
+    text: "The meeting is calm, factual, and focused. Mr. Novák communicates directly but politely and gives clear feedback focused on results."
+  },
+  {
+    title: "Communication Style",
+    img: "story_communication.png",
+    text: "Arguments are structured and practical rather than abstract. This reflects low-context communication."
+  },
+  {
+    title: "Decision-Making and Hierarchy",
+    img: "story_decision.png",
+    text: "There is a clear hierarchy. Final decisions are made by Mr. Novák as the top-level manager."
+  },
+  {
+    title: "After Work",
+    img: "story_pub.png",
+    text: "After the meeting, Mr. Novák suggests continuing the conversation over a beer. Trust builds over time. At the end of the day, he leaves in his Škoda."
+  }
+];
+
+const ROOMS = [
+
+  // ---------------- ROOM 1 ----------------
+  {
+    name: "",
+    bg: backgrounds[1],
+    questions: [
+      {
+        id: 'q1',
+        title: 'Meeting Style',
+        type: 'mcq',
+        hint: 'No small talk, straight to the point.',
+        question: 'How are Czech business meetings typically conducted?',
+        options: ['Emotional', 'Calm and factual', 'Enthusiastic', 'Relationship-first'],
+        correctIndex: 1
+      },
+      {
+        id: 'q2',
+        title: 'Punctuality',
+        type: 'mcq',
+        hint: 'If you arrive at 9:00 you are late.',
+        question: 'When should you arrive to a business meeting in Czech Republic at latest if it is at 9:00?',
+        options: ['9:00', '15 minutes late', '5 minutes early', 'Whenever you feel like it'],
+        correctIndex: 2  
+        }
+        
+    ]
+  },
+
+  // ---------------- ROOM 2 ----------------
+  {
+    name: "",
+    bg: backgrounds[2],
+    questions: [
+      {
+        id: 'q3',
+        title: 'Confidence',
+        type: 'mcq',
+        hint: 'Starts with T.',
+        question: 'What must be earned before Czechs show their true personality?',
+        options: ['Trust', 'Respect', 'Friendship', 'Sincerity'], 
+        correctIndex: 0
+      },
+      {
+        id: 'q4',
+        title: 'Formality',
+        type: 'mcq',
+        hint: 'Hierarchal depending on age.',
+        question: 'How should you address someone in Czech business?',
+        options: ['First names', 'Nicknames', 'Last names and titles', 'No formality'],
+        correctIndex: 2
+      }
+    ]
+  },
+
+  // ---------------- ROOM 3 ----------------
+  {
+    name: "",
+    bg: backgrounds[3],
+    questions: [
+      {
+        id: 'q5',
+        title: 'Feedback Style',
+        type: 'mcq',
+        hint: 'We do not like to sugar coat anything.',
+        question: 'How do Czechs give negative feedback?',
+        options: ['Indirect', 'Direct but polite', 'Aggressive', 'Nonverbal'],
+        correctIndex: 1
+      },
+      {
+        id: 'q6',
+        title: 'Greeting Style',
+        type: 'mcq',
+        hint: 'Non-verbal (physical contact)',
+        question: 'What is an expected greeting in a business setting?',
+        options: ['Wave', 'Kiss on the cheek', 'Hug', 'Handshake'],
+        correctIndex: 3
+      }
+    ]
+  },
+
+  // ---------------- ROOM 4 ----------------
+  {
+    name: "",
+    bg: backgrounds[4],
+    questions: [
+      {
+        id: 'q7',
+        title: 'Persuading (Culture Map)',
+        type: 'mcq',
+        hint: '"Here is what I will do, now I will show you why/how I will do it!".',
+        question: 'How do Czechs prefer arguments?',
+        options: ['Principles first', 'Applications first', 'Stories', 'No structure'],
+        correctIndex: 1
+      },
+      {
+        id: 'q8',
+        title: 'Communication Style',
+        type: 'mcq',
+        hint: 'Easy to follow.(Low/High-Context)',
+        question: 'Czech communication style on Culture Map?',
+        options: ['High-context', 'Low-context','Story-based', 'Implicit'],
+        correctIndex: 1
+      }
+    ]
+  },
+
+  // ---------------- ROOM 5 ----------------
+  {
+    name: "",
+    bg: backgrounds[5],
+    questions: [
+      {
+        id: 'q9',
+        title: 'Decision-Making Style',
+        type: 'mcq',
+        hint: 'Structured, not chaotic.',
+        question: 'In Czech companies, decisions are typically made...',
+        options: [
+          'By top-level management',
+          'Through group consensus',
+          'Spontaneously',
+          'By the youngest team members'
+        ],
+        correctIndex: 0
+      },
+      {
+        id: 'q10',
+        title: 'Hierarchy',
+        type: 'mcq',
+        hint: 'Respect for titles (Very hierarchical/Not that hierarchical)',
+        question: 'Czech business culture is generally…',
+        options: ['Without managers','Completely flat', 'Informal and Flexible','Very hierarchical'],
+        correctIndex: 3
+      }
+    ]
+  },
+
+  // ---------------- ROOM 6 ----------------
+  {
+    name: "",
+    bg: backgrounds[6],
+    questions: [
+      {
+        id: 'q11',
+        title: 'Formality in First Meetings',
+        type: 'mcq',
+        hint: 'Traditionally polite.',
+        question: 'During first meetings, Czechs are usually…',
+        options: ['Casual', 'Very formal', 'Overly emotional', 'Confused'],
+        correctIndex: 1
+      },
+      {
+        id: 'q12',
+        title: 'Czech Business',
+        type: 'mcq',
+        hint: 'This car brand has models like Fabia, Octavia, Superb, Kodiaq, Eniaq.',
+        question: 'What is the europe-wide car brand coming from Czech Republic',
+        options: ['Škoda', 'Volkswagen', 'Volvo', 'Lada'],
+        correctIndex: 0
+      }
+    ]
+  },
+
+  // ---------------- ROOM 7 ----------------
+  {
+    name: "",
+    bg: backgrounds[7],
+    questions: [
+      {
+        id: 'q13',
+        title: 'Team Communication',
+        type: 'mcq',
+        hint: 'Structured and clear.',
+        question: 'When communicating inside teams, Czechs prefer…',
+        options: ['Ambiguous hints', 'Clear structure', 'Emotional storytelling', 'Indirect metaphors'],
+        correctIndex: 1
+      },
+      {
+        id: 'q14',
+        title: 'True Czech Culture',
+        type: 'mcq',
+        hint: 'This drink has been added to the national cultural heritage of Czech Republic, Czechs also drink most of this beverage per year per capita (pivo in Czech)',
+        question: 'A lot of times, meetings happen over a ... in a pub',
+        options: ['Vodka', 'Wine', 'Beer', 'Spritzer'],
+        correctIndex: 2
+      }
+    ]
+  },
+
+  // ---------------- ROOM 8 ----------------
+  {
+    name: "",
+    bg: backgrounds[8],
+    questions: [
+      {
+        id: 'q15',
+        title: 'Decision Speed',
+        type: 'mcq',
+        hint: 'Caution comes first.',
+        question: 'Czech decision-making speed is usually very fast and unstructured (True or False)',
+        options: ['True', 'False'],
+        correctIndex: 1 
+      },
+      {
+        id: 'q16',
+        title: 'Business Relationships',
+        type: 'mcq',
+        hint: 'Earned—not automatic.',
+        question: 'Czech business relationships are built on…',
+        options: [
+          'Immediate closeness',
+          'Formality and trust over time',
+          'Emotional bonding first',
+          'Random chance'
+        ],
+        correctIndex: 1
+      }
+    ]
+  }
+
+];
+
+// State
+const root = document.getElementById("root");
+let room = -1, solved={}, revealed=0, message='', vaultCode='', timerInt = null;
+const totalQuestions = ROOMS.reduce((acc, r) => acc + r.questions.length, 0);
+
+let timeLeft = 600; // 10-minute timer (seconds)
+function updateTimer(){
+  const timerDiv = document.getElementById("timer");
+  if (room === -2) {
+  const page = STORY_PAGES[storyIndex];
+
+  document.body.style.backgroundImage = `url('${page.img}')`;
+
+  root.innerHTML = `
+    <div class="wrapper">
+      <h1>${page.title}</h1>
+      <img src="${page.img}" class="intro-img" alt="${page.title}">
+      <p>${page.text}</p>
+      <button class="btn" id="storyNext">
+        ${storyIndex < STORY_PAGES.length - 1 ? "Next" : "Start Escape Room"}
+      </button>
+    </div>
+  `;
+
+  document.getElementById("storyNext").onclick = () => {
+    if (storyIndex < STORY_PAGES.length - 1) {
+      storyIndex++;
+    } else {
+      room = 0;
+      startTimer();
+      document.getElementById("bgm").play();
+    }
+    render();
+  };
+
+  return;
+}
+  if(room === -1) { 
+    timerDiv.innerText = ""; 
+    return; 
+  }
+
+  let min = Math.floor(timeLeft / 60);
+  let sec = String(timeLeft % 60).padStart(2, '0');
+  timerDiv.innerText = `Time Left: ${min}:${sec}`;
+
+  // COLOR LOGIC (10 min = 600 seconds)
+  if (timeLeft > 450) {
+    timerDiv.style.color = "#7CFF7C"; // green
+  } else if (timeLeft > 300) {
+    timerDiv.style.color = "#FFF16B"; // yellow
+  } else if (timeLeft > 150) {
+    timerDiv.style.color = "#FFB24D"; // orange
+  } else {
+    timerDiv.style.color = "#FF6161"; // red
+  }
+}
+
+
+
+function startTimer(){
+  if(timerInt) clearInterval(timerInt);
+  updateTimer();
+  timerInt = setInterval(()=>{
+    timeLeft--;
+    updateTimer();
+    if(timeLeft <= 0){
+      clearInterval(timerInt);
+      gameOver();
+    }
+  }, 1000);
+}
+
+// Game over view
+function gameOver(){
+  document.body.style.backgroundImage = `url('${backgrounds[5]}')`;
+  root.innerHTML = `<div class="wrapper">
+      <h1>Time's Up!</h1>
+      <p>You ran out of time.<br>
+      <span class="code-box">${hideVaultLetters()}</span></p>
+      <button class="btn" onclick="location.reload()">Try Again</button>
+    </div>`;
+  document.getElementById("timer").innerText = "";
+}
+
+function play(id){
+  const audio = document.getElementById(id); if(!audio) return;
+  // audio.play() might be blocked by browser autoplay rules for background music;
+  // the success/fail SFX are played after user interaction in the game in most cases
+  // so they usually work fine.
+  try { audio.currentTime = 0; audio.play(); } catch(e) { /* ignore autoplay errors */ }
+}
+
+function showVaultLetters(){
+  let letters = "";
+
+  for(let i = 0; i < VAULT_CODE.length; i++){
+    const char = VAULT_CODE[i];
+
+    if(char === " "){
+      // Do not reveal a letter, do not show underscore,
+      // just show a visual spacer
+      letters += "   "; 
+      continue;
+    }
+
+    if(i < revealed){
+      letters += char + " ";
+    } else {
+      letters += "_ ";
+    }
+  }
+
+  return letters.trim();
+}
+function hideVaultLetters(){
+  let letters = "_ ".repeat(VAULT_CODE.length);
+  return letters.trim();
+}
+
+function render(){
+  if(room === -1){
+    document.body.style.backgroundImage = `url('${backgrounds[0]}')`;
+  } else if(room >= 0 && room < ROOMS.length) {
+    document.body.style.backgroundImage = `url('${ROOMS[room].bg}')`;
+  } else if(room === 99){
+    document.body.style.backgroundImage = `url('${backgrounds[9]}')`;
+  }
+
+  root.innerHTML = "";
+  updateTimer();
+
+  if(room === -1){
+    root.innerHTML = `
+      <div class="wrapper">
+        <img src="${lionImg}" class="intro-img" alt="Czech lion" />
+        <h1>Czechscape Room</h1>
+        <div class="code-box">${hideVaultLetters()}</div>
+        <p>You will get ten minutes to escape our Czechscape room, that will be the last true test before you will be ready to venture out into the space of Czech business.</p>
+        <button class="btn" id="startBtn">Start</button>
+      </div>
+    `;
+    document.getElementById("startBtn").onclick = () => { room = -2;
+storyIndex = 0;
+render();
+; startTimer(); document.getElementById('bgm').play(); render(); };
+    return;
+  }
+
+  if(room === 99){
+    root.innerHTML = `
+      <div class="wrapper">
+        <h1>Freedom!</h1>
+        <p>The vault opens. As the cold breeze hits you and the vault opens, you realise that you understand the basics of Czech communication.</p>
+        <div class="code-box">${VAULT_CODE}</div>
+        <button class="btn" onclick="location.reload()">Play Again</button>
+      </div>
+    `;
+    play('vault');
+    return;
+  }
+
+  const roomObj = ROOMS[room];
+  let html = `<div class="wrapper">
+    <div class="code-box">${showVaultLetters()}</div>
+    <h2>${roomObj.name}</h2>`;
+  roomObj.questions.forEach((q) => {
+    const answered = solved[q.id];
+    html += `<div style="margin:1em 0;">
+      <b>${q.title}</b>
+      <div style="font-size:90%; color:#ffd85e;">Hint: ${q.hint}</div>
+      <div style="margin-bottom:0.4em;">${q.question}</div>`;
+    if(answered) {
+      html += `<span class="correct">✔ Correct! Letter revealed.</span>`;
+    } else if(q.type === 'mcq') {
+      html += q.options.map((opt, oi) =>
+        `<button class="btn" style="margin:0.25em;"
+          onclick="submitAnswer('${q.id}', ${oi}); play('click');">${opt}</button>`
+      ).join('');
+    } else {
+      html += `<input type="text" id="input_${q.id}" placeholder="Type your answer"/>
+        <button class="btn" style="margin:0.25em;" onclick="submitShort('${q.id}'); play('click');">Submit</button>`;
+    }
+    html += "</div>";
+  });
+
+  if(message)
+    html += `<div style="margin:0.8em 0; font-weight:bold;" class="${message.startsWith('Incorrect')?'incorrect':'correct'}">${message}</div>`;
+
+  if(roomObj.questions.every(q=>solved[q.id]) && room < ROOMS.length-1) {
+    html += `<button class="btn" id="nextRoomBtn">Proceed to Next Room</button>`;
+  }
+  if(room === ROOMS.length-1 && roomObj.questions.every(q=>solved[q.id])) {
+    html += `<div style="border:2px solid gold; padding:1em; margin:1em 0; border-radius:0.7em; background:#2226;">
+      <div><b>Enter the Vault Code without gaps:</b></div>
+      <input type="text" id="vaultInput" value="${vaultCode}" style="font-family:monospace;"/>
+      <button class="btn" onclick="submitVault()">Open Vault</button>
+    </div>`;
+  }
+  html += `</div>`;
+  root.innerHTML = html;
+
+  roomObj.questions.filter(q=>!solved[q.id] && q.type==='short').forEach(q=>{
+    const box = document.getElementById(`input_${q.id}`);
+    if(box) { box.onkeydown = e=>{ if(e.key==='Enter') submitShort(q.id); }; }
+  });
+  if(document.getElementById("nextRoomBtn")){
+    document.getElementById("nextRoomBtn").onclick = () => { room++; render(); };
+  }
+}
+
+function revealLetter(){
+  revealed = Math.min(revealed + 1, VAULT_CODE.length);
+}
+
+window.submitAnswer = function(qid, index){
+  const q = ROOMS[room].questions.find(q=>q.id===qid);
+  if(index === q.correctIndex) {
+    play('success');
+    solved[qid] = true;
+    revealLetter();
+    message = "Correct! Letter revealed.";
+  } else {
+    play('fail');
+    message = "Incorrect — try again.";
+  }
+  render();
+};
+
+window.submitShort = function(qid){
+  const q = ROOMS[room].questions.find(q=>q.id===qid);
+  const val = document.getElementById(`input_${qid}`).value;
+  if(q.validate(val)) {
+    play('success');
+    solved[qid] = true;
+    revealLetter();
+    message = "Correct! Letter revealed.";
+  } else {
+    play('fail');
+    message = "Incorrect — try again.";
+  }
+  render();
+};
+
+window.submitVault = function(){
+  vaultCode = document.getElementById("vaultInput").value.trim().toUpperCase();
+  if(vaultCode === VAULT_CODE){
+    room = 99; message='';
+    clearInterval(timerInt); // Stop timer in victory
+    render();
+  } else {
+    play('fail');
+    message = "Wrong code — try again.";
+    render();
+  }
+};
+
+render();
+</script>
+</body>
+</html>
